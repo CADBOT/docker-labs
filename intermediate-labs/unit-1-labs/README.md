@@ -88,24 +88,96 @@ Let's begin by dockerizng a node.js application. The steps involved
 are installing node.js inside the Dockerfile, adding our source code,
 installing our source code's dependencies, and starting the application
 
-TODO double check this once I get internet
-
 Create the following Dockerfile
 ```
 FROM ubuntu:16.04
 RUN apt-get update
-RUN apt-get install -y nodejs
-COPY .
+RUN apt-get install -y nodejs npm
+RUN mkdir /www
+WORKDIR /www
+COPY . /www
 RUN npm install
 EXPOSE 8080
-CMD node index.js
+CMD nodejs index.js
 ```
-Then copy all the node.js app source code - index.js and package.json file -
+Then copy all the node.js app source code - index.js package.json file -
 into the same directory as the Dockerfile and run the command
 
 * docker image build -t nodeapp .
 
 Run in the container, port map it, and try to get a response
 
-* docker container run -d nodeapp
+* docker container run -p 8080:8080 -d nodeapp
 * curl http://localhost:8080
+
+# Base images with onbuild
+## Practice
+
+Instead of dockerizing the node app directly as we did in the prior lab, let's
+create a base image that does the work we want in every image, and we will
+create an image that uses it as a base, only applies configuration. In this
+case we will make base image that installs the dependencies, and the
+command for starting the app - via the ONBUILD instruction - and specify
+the port for the app in a different Dockerfile
+
+Creat the following Dockerfile
+
+```
+FROM ubuntu:16.04
+RUN apt-get update
+RUN apt-get install -y nodejs npm
+RUN mkdir /www
+WORKDIR /www
+ONBUILD COPY . /www
+ONBUILD RUN npm install
+ONBUILD CMD nodejs index.js
+```
+
+Then build an image from it
+
+* docker image build -t nodetemplate .
+
+Then grab the files from the nodeapp2 directory, and put them
+in the same directory as the following Dockerfile
+
+```
+FROM nodetemplate
+ENV PORT 8080
+EXPOSE 8080
+```
+
+And build an image from it
+* docker image build -t nodeapp2 .
+
+Run in the container, port map it, and try to get a response
+
+* docker container run -p 8080:8080 -d nodeapp2
+* curl http://localhost:8080
+
+# Image args
+## Practice
+
+In our last example we could change the app from running on port 8080 to
+3000, but that would require changing the Dockerfile. Let's use the args
+
+We will reuse are nodetemplate image, but let's create a new nodeapp3 image with
+the following dockerfile
+
+```
+FROM nodetemplate
+ARG PORT=3000
+ENV PORT=${PORT}
+```
+
+If we build an image like usual it will set to a default of port 3000
+
+* docker image build -t nodeapp3 .
+* docker container run -p 3000:3000 -d nodeapp
+* curl http://localhost:3000
+
+But if we specify an arg during the build command, we can change which
+port the image will be built with
+
+* docker image build --build-arg PORT=3001 -t nodeapp4 .
+* docker container run -p 3001:3001 -d nodeapp
+* curl http://localhost:3001
